@@ -25,7 +25,7 @@
 #include "scsynthsend.h"
 #include "SC_Prototypes.h"
 #include "SC_HiddenWorld.h"
-#include "SC_DirUtils.h"
+#include "SC_Filesystem.hpp"
 #include "SC_StringParser.h"
 #include "../../common/SC_SndFileHelpers.hpp"
 #include "SC_WorldOptions.h"
@@ -44,6 +44,7 @@ void PerformCompletionMsg(World *inWorld, OSC_Packet *inPacket);
 		OSC_Packet packet; \
 		packet.mData = mMsgData; \
 		packet.mSize = mMsgSize; \
+		packet.mIsBundle = false; \
 		packet.mReplyAddr = mReplyAddress; \
 		PacketStatus status = PerformCompletionMsg(mWorld, packet); \
 		if (status == PacketScheduled) { \
@@ -530,7 +531,7 @@ bool BufAllocReadCmd::Stage2()
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_allocRead", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
@@ -627,10 +628,11 @@ bool BufReadCmd::Stage2()
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_read", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	SF_INFO fileinfo;
+	memset(&fileinfo, 0, sizeof(fileinfo));
 
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
 	int framesToEnd = buf->frames - mBufOffset;
@@ -792,7 +794,7 @@ bool BufAllocReadChannelCmd::Stage2()
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_allocReadChannel", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
@@ -916,10 +918,11 @@ bool BufReadChannelCmd::Stage2()
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_readChannel", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	SF_INFO fileinfo;
+	memset(&fileinfo, 0, sizeof(fileinfo));
 
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
 	int framesToEnd = buf->frames - mBufOffset;
@@ -1025,7 +1028,7 @@ int BufWriteCmd::Init(char *inData, int inSize)
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_write", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	sc_msg_iter msg(inSize, inData);
@@ -1146,7 +1149,7 @@ bool BufCloseCmd::Stage2()
 {
 #ifdef NO_LIBSNDFILE
 	SendFailure(&mReplyAddress, "/b_close", "scsynth compiled without libsndfile\n");
- 	scprintf("scsynth compiled without libsndfile\n");
+	scprintf("scsynth compiled without libsndfile\n");
 	return false;
 #else
 	SndBuf *buf = World_GetNRTBuf(mWorld, mBufIndex);
@@ -1266,6 +1269,7 @@ int NotifyCmd::Init(char *inData, int inSize)
 {
 	sc_msg_iter msg(inSize, inData);
 	mOnOff = msg.geti();
+	mID = msg.geti(-1);
 
 	return kSCErr_None;
 }
@@ -1275,13 +1279,41 @@ void NotifyCmd::CallDestructor()
 	this->~NotifyCmd();
 }
 
+/** \brief Attempts to find and remove the requested \c id from \c availableIDs.
+ *
+ * If \c id is -1 or not in \c availableIDs, returns the first element in
+ * \c availableIDs. Otherwise, returns \c id.
+ */
+int popAvailableClientID(int const id, ClientIDs& availableIDs)
+{
+    int clientID = -1;
+    if(id == -1) {
+        // no requested clientID
+        clientID = availableIDs.front(); // pop an ID
+        availableIDs.pop_front();
+    } else {
+        // user ID requested
+        auto it = std::find(availableIDs.begin(), availableIDs.end(), id);
+        if (it != availableIDs.end()) { // return the requested ID if available
+            clientID = id;
+            availableIDs.erase(it);
+        } else {
+            // otherwise return the first free one
+            clientID = availableIDs.front();
+            availableIDs.pop_front();
+        }
+    }
+
+    return clientID;
+}
+
 bool NotifyCmd::Stage2()
 {
 	HiddenWorld *hw = mWorld->hw;
 
 	if (mOnOff) {
-		for (uint32 i=0; i<hw->mNumUsers; ++i) {
-			if (mReplyAddress == hw->mUsers[i]) {
+		for (auto addr : *hw->mUsers) {
+			if (mReplyAddress == addr) {
 				// already in table - don't fail though..
 				SendFailureWithIntValue(&mReplyAddress, "/notify", "notify: already registered\n", hw->mClientIDdict->at(mReplyAddress));
 				scprintf("/notify : already registered\n");
@@ -1289,28 +1321,28 @@ bool NotifyCmd::Stage2()
 			}
 		}
 
-		// add reply address to user table
-		if (hw->mNumUsers >= hw->mMaxUsers) {
+		if (hw->mUsers->size() >= hw->mMaxUsers) {
 			SendFailure(&mReplyAddress, "/notify", "too many users\n");
 			scprintf("too many users\n");
 			return false;
 		}
 
-		uint32 clientID = hw->mClientIDs[hw->mClientIDTop++]; // pop an ID
-		hw->mClientIDdict->insert(std::pair<ReplyAddress, uint32>(mReplyAddress,clientID));
-		hw->mUsers[hw->mNumUsers++] = mReplyAddress;
+		int const clientID = popAvailableClientID(mID, *hw->mAvailableClientIDs);
 
-		SendDoneWithIntValue("/notify", clientID);
+		hw->mClientIDdict->insert(std::make_pair(mReplyAddress,clientID));
+		hw->mUsers->insert(mReplyAddress);
+		SendDoneWithVarArgs(&mReplyAddress, "/notify", "ii", clientID, (int)hw->mMaxUsers);
+		
 	} else {
-		for (uint32 i=0; i<hw->mNumUsers; ++i) {
-			if (mReplyAddress == hw->mUsers[i]) {
-				// remove from list
-				hw->mClientIDs[--hw->mClientIDTop] = hw->mClientIDdict->at(mReplyAddress); // push the freed ID
-				hw->mClientIDdict->erase(mReplyAddress);
-				hw->mUsers[i] = hw->mUsers[--hw->mNumUsers];
-				SendDone("/notify");
-				return false;
-			}
+
+        auto const it = std::find(hw->mUsers->begin(), hw->mUsers->end(), mReplyAddress);
+		if (it != hw->mUsers->end()) {
+			// remove from list
+			hw->mAvailableClientIDs->push_back(hw->mClientIDdict->at(mReplyAddress)); // push the freed ID
+			hw->mClientIDdict->erase(mReplyAddress);
+			hw->mUsers->erase(it);
+			SendDone("/notify");
+			return false;
 		}
 
 		SendFailure(&mReplyAddress, "/notify", "not registered\n");

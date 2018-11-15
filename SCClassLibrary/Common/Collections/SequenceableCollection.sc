@@ -358,6 +358,7 @@ SequenceableCollection : Collection {
 		list = list.add(sublist);
 		^list
 	}
+
 	delimit { arg function;
 		var list, sublist;
 		list = Array.new;
@@ -1270,15 +1271,15 @@ SequenceableCollection : Collection {
 		index = index % this.size;
 		^this.put(index, value)
 	}
-	reduce { arg operator;
+	reduce { arg operator, adverb;
 		var once = true, result;
 		if(this.size==1){ ^this[0] };
 		this.doAdjacentPairs {|a, b|
 			if (once) {
 				once = false;
-				result = operator.applyTo(a, b);
+				result = operator.applyTo(a, b, adverb);
 			}{
-				result =  operator.applyTo(result, b);
+				result =  operator.applyTo(result, b, adverb);
 			};
 		};
 		^result

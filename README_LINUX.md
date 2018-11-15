@@ -1,5 +1,5 @@
-Supercollider 3 for linux
-=========================
+Welcome to SuperCollider for Linux!
+===================================
 
 Intro
 -----
@@ -106,7 +106,7 @@ Beaglebone Black) can be found here:
 
     http://supercollider.github.io/development/building
 
-The recommended version of gcc is 4.8
+The minimum required version of gcc is 4.8.
 
 
 Building
@@ -120,6 +120,8 @@ builds in a specific build directory:
    $> cd build
    $> cmake -DCMAKE_PREFIX_PATH=/path/to/qt5 ..
    ```
+
+   The `..` at the end is easy to miss. Don't forget it!
 
    The location of `/path/to/qt5` will depend on how you installed Qt:
 
@@ -143,6 +145,15 @@ builds in a specific build directory:
 
    ```
    $> cmake -DCMAKE_BUILD_TYPE=Release ..
+   ```
+
+   In some situations it is preferable to install libraries and plugins
+   not in the `lib` directory but in a suffixed one, e.g. `lib64`.
+   In such a case you can set the cmake variable `LIB_SUFFIX`.
+   For example if you whish to install into `lib64`:
+
+   ```
+   $> cmake -DLIB_SUFFIX=64 ..
    ```
 
  - to install the whole program, run:

@@ -1,38 +1,39 @@
-Welcome to Supercollider 3.8 for Windows!
-=========================================
+Welcome to SuperCollider for Windows!
+=====================================
 
-**IMPORTANT NOTE**:
-
-This Readme has two blocks: "Installing SuperCollider", and "Building
-SuperCollider for Windows". The first block provides basic information to get
-going, and also tries to introduce to SC speak on the way. The second block
-is divided into two blocks again, "Quick Steps" and "Walkthroughs". The Quick Steps
-contain the essentials for a successful build, the "Walkthroughs" are more
-tutorial-like and have unexperienced developers in mind. They are not required
-reading to build the Windows version of SC. Furthermore the individual chapters
-in "Walkthroughs" are not expected to be read consecutively, they might appear
-quite repetitive if done so.
-
-November 2016
-
+This Readme has two sections: "Installing SuperCollider", and "Building
+SuperCollider for Windows". The first section provides basic information to get
+going, and also introduces some common SuperCollider terminology. The second
+section is subdivided into two sections: direct build instructions, and
+"Walkthroughs". The first part contains the essentials for a successful build,
+while the walkthroughs are more tutorial-like and written for less experienced
+developers. They are not required reading to build the Windows version of SC.
+Furthermore, the individual chapters in "Walkthroughs" are not expected to be
+read consecutively; they might appear quite repetitive if done so.
 
 Table of contents
 -----------------
 
 - Introduction
-- *Installing SuperCollider*
+- **Installing SuperCollider**
   - System requirements
   - Using the SuperCollider IDE
   - Using SuperCollider in command line mode
   - Configuration- and support files
   - Extensions and Quarks
-- *Building SuperCollider for Windows*
-  - Introduction
-  - Quick Steps
-    - Required software
-    - Arrangement of toolchain and libraries
-    - Configuring and executing the build
-    - Portaudio
+- **Building SuperCollider for Windows**
+  - Required and Optional Components
+  - Preparing to build
+  - Configuration and building
+  - Additional build settings
+    - Build type
+    - SuperNova
+    - Other targets (install, installer)
+    - PortAudio
+    - FLAC support
+  - Common build problems
+    - Dirty build states
+    - Wrong libraries found
   - Walkthroughs
     - The trial-error approach: building sc3-plugins and aggregating
       build settings to pass to `cmake`
@@ -41,14 +42,9 @@ Table of contents
     - Using Qt Creator
     - More `cmake`: building supernova, qt-less, verbosity and more
     - Recalling environment- and build settings on the command line
-    - On the horizon: MSYS2
-  - Diagnosing build problems
-    - Dirty build states
-    - Wrong libraries found
-- Description of SC 3.7 release build
-- Known problems
+- Description of SC 3.9 release build
+- Known issues
 - Outro
-- Links
 
 Introduction
 ============
@@ -57,7 +53,7 @@ This is the Windows version of James McCartney's SuperCollider synthesis engine
 (`scsynth`) and programming language (`sclang`), distributed together with a
 dedicated IDE (`scide`).
 
-SuperCollider's central website is on Github:
+SuperCollider's homepage is:
 
     http://supercollider.github.io/
 
@@ -65,6 +61,10 @@ Binaries of release-versions and pre-release snapshots are available as
 GitHub releases now:
 
     https://github.com/supercollider/supercollider/releases
+
+You can also download a bleeding-edge build of the latest development branch!
+Builds are available for [32-bit][bleeding edge 32 bit] and
+[64-bit][bleeding edge 64 bit] Windows.
 
 This page also provides snapshots of the source version used for the release.
 Note though, that this automated Github service misses out on the submodules.
@@ -77,7 +77,7 @@ from Sourceforge:
 
     http://sourceforge.net/projects/supercollider/files/?source=navbar
 
-There is an online version of SuperCollider Help, the site SCDOC:
+There is an online version of SuperCollider Help:
 
     http://doc.sccode.org/Help.html
 
@@ -160,11 +160,7 @@ Help Browser'.
 Using SuperCollider in command line mode
 ----------------------------------------
 
-*Note*: this is currently broken (Nov 2016, SC3.8). If you are using the 32-bit
-version, you can get output in emergency situations: either keep your finger on
-the key for about halph a second or type each keystroke twice for it to
-register. You can also send text files to sclang by passing the filename as
-argument to `sclang`.
+**This is currently unsupported.**
 
 1. Open a Windows command line window (the cmd.exe program).
 
@@ -197,12 +193,12 @@ Configuration- and support files
 An important folder containing application related user data (for example
 extensions, quarks, Help files, plugins, configuration files, synthdefs) is
 located in the Windows 'local application data' folder. In SC-speak this folder
-is called the userAppSupportDir. This location is a bit tricky to find when not
-using SC-IDE because its grandparent `AppData` is hidden by default. You
-can see it in the environment variable LOCALAPPDATA. Type this on a command
-line:
+is called the `userAppSupportDir`. This location is a bit tricky to find when
+not using SC-IDE because its grandparent `AppData` is hidden by default. You
+can see it in the environment variable LOCALAPPDATA. In a command prompt,
+execute:
 
-    $> echo %LOCALAPPDATA%
+    echo %LOCALAPPDATA%
 
 You will likely see (the grandpa referred to earlier):
 
@@ -212,10 +208,10 @@ The userAppSupportDir is in the subfolder `Local\SuperCollider`:
 
     C:\Users\<USERNAME>\AppData\Local\SuperCollider
 
-This folder is user writable and *not* deleted by uninstall. Therefore your
-settings, quarks, plugins etc persist through SC-updates. This is usually good,
+This folder is user writable and *not* deleted by uninstalling. Therefore your
+settings, quarks, and plugins persist through updates. This is usually good,
 but if you have binary "plugins" and update a minor version, e.g. 3.6 to 3.7,
-the plugins will not work any more, and cause errors during SC start-up. There
+the plugins may not work any more, and cause errors during SC start-up. There
 are more files in the `userAppSupportDir` that can cause trouble after updates,
 so you want to be aware of the possibility. In the IDE it is very easy to access
 the folder. There is a menu entry -> `Open user support directory`). You can
@@ -259,297 +255,200 @@ see 'Help -> Using Quarks'.
 Enjoy SuperCollider!
 
 
-
 Building SuperCollider for Windows
 ==================================
 
-Introduction
-------------
+SuperCollider uses [CMake][cmake] as its build system. The main toolchain
+supported by the development team is Visual Studio - Microsoft's IDE for C++ -
+which also includes Visual C++, the official Microsoft C++ compiler. Use of
+other build environments and toolchains (such as MinGW, gcc, and Cygwin) is not
+currently supported.
 
-In order to provide the same build logic for all platforms, SC uses the cross
-platform build system [CMake][cmake]. It can configure builds and generate
-intermediary build files for many OS/toolchain combinations. The separation of
-build system, and actual application development allows to define cross-platform
-build definitions in a single framework, and still do actual application
-development in your preferred native environment. On Windows this works nicely
-with Visual Studio and Qt Creator. While CMake is command line oriented, it can
-also be controlled from a GUI (`cmake-gui`) and is very well integrated into Qt
-Creator.
+Required and Optional Components
+--------------------------------
 
-As to Visual Studio, if you generate the solution file with CMake, you can build
-from the IDE and CMake will automatically rerun if necessary. In order to
-develop for SC proper, by any luck, you might not have to care much about CMake,
-and can spend most of the time in your preferred IDE.
+You will need to install these packages manually if you do not already have
+them. When you are given the option, make sure to choose the 32-bit or 64-bit
+version of each library as appropriate.
 
-The Windows port of SC is in a stage of transition. The older build system used
-the Windows port of GCC (MinGW), the newer uses the native Windows build tools
-integrated into the IDE Visual Studio. This transition is not complete yet.
-SuperNova, an alternative server with multi-core capabilities cannot be built
-with VS yet. Also sclang's interactive command line functionality (readline
-based) cannot be added in the Visual Studio build at the time of this writing.
+Required components:
 
+- **[Git][Git]** for Windows
+- **[CMake][cmake]**
+- **[Visual Studio 12 2013][VS2013]**: note that you will need to join Visual
+  Studio Team Services (for free) in order to download this older version
+- **[Qt][Qt]** 5.5.1. Use the package `msvc2013_64` for a 64-bit build,
+  `msvc2013` for 32-bit.
+- **[libsndfile][libsndfile]** >= 1.0.25. The binary distribution for Windows
+  does not have FLAC support. For building with FLAC support, see the "FLAC
+  Support" section below.
+- The **[Windows SDK][Windows 10 SDK]** for your edition of Windows
 
-Quick Steps
------------
+Optional, but highly recommended:
 
-### Required software
+- **[fftw][fftw]** >= 3.3.4
+- **[Asio SDK][asiosdk]** >= 2.3, for Asio support in PortAudio
 
-- Source management
-  - [Git][Git] for Windows (latest version)
-- Build tools
-  - [CMake][cmake], minimum 3.4.3, maximum 3.5.2 (! when using MinGW)
-  - One of:
-    - [MinGW][Qt], version *4.82* 32-bit, the distribution shipped with Qt (QT\Tools\mingw482_32)
-    - [Visual Studio 12 2013][VS]
-- Libraries
-  - Required
-    - *[Qt][Qt]* versions 5.5.x Versions from 5.3 upwards should work but are
-        little tested. Qt5.6 does not work with SC 3.7 because WebKit was dropped
-        from the binary distribution.
-        Use the official download from qt.io and the online-installer. It offers
-        flexibility in choosing different packages in a single go (e.g. Qt,
-        MinGW and Qt Creator), and helps managing maintenance. It provides a
-        file structure that accommodates different Qt flavours (Qt built with
-        different toolchains), versions, and modules within a single tree. We
-        will be referring to that file structure throughout this text.
+Optional components:
 
-        *Important note*: the flavour of Qt (e.g. msvc2013_64 or mingw492_32) must
-        match your toolchain as closely as possible!
+- **[readline][readline]** for command-line support. However, this is currently
+  non-functional.
+- **DirectX SDK** [v.9][dx9sdk] for Direct Sound support in Portaudio
+- **[NSIS][nsis]** to create an installation executable. Make sure to add
+  `makensis` to your `PATH`!
 
-        For a 64-bit VS build select msvc2013_64
-        for a 32-bit MinGW build select mingw482_32
+Other development tools:
 
-        It is also possible to build a 32-bit version with VS. The 64-bit
-        Mingw-build is currently broken.
+- a Unix line-ending friendly text editor like **[Atom][atomeditor]** or
+  **[Notepad++][notepad++]**. There are SuperCollider packages available
+  for Atom.
+- **[7-zip][7-zip]** to extract .tar and .gz format archives
 
-    - *[libsndfile][libsndfile]* >= 1.0.25
-    - *[Windows SDK][Windows 10 SDK]* fitting your Windows version
-- Recommended
-  - *[fftw][fftw]* >= 3.3.4
-  - *[readline][readline]* = 5.0.1 (more recent versions, as found in MinGW distributions do
-    *not* work at the time of this writing). Readline only works with the 32-bit
-    MinGW build
-  - *[ASIO-SDK][asiosdk]* = 2.3 (Asio support in Portaudio)
-- Optional
-  - *DirectX SDK* [v.9][dx9sdk] for VS build. (Direct Sound support in Portaudio)
-  - *[NSIS][nsis]*, if you want to create a binary SC installer (add the binary `makensis` to PATH)
-- Convenience
-  - a Unix line-ending friendly text editor like *[Atom][atomeditor]* or *[Notepad++][notepad++]*.
-    Atom is particularly interesting because there is a SuperCollider package available to extend it.
-  - an extraction tool for unixy compression formats like tar and gz, e.g. *[7-zip][7-zip]*
+Preparing to build
+------------------
 
-
-Last but not least, the SC source:
+First obtain the source code by checking out the repository:
 
     git clone --recursive https://github.com/supercollider/supercollider.git
 
-The SuperCollider source comes with several submodules, or embedded external
-libraries. Adding `--recursive` to the git command makes sure that they get
-initialized and populated. When switching branches or otherwise traversing the
-variations and history of the SC source, it may sometimes become necessary to
-resynchronize SC and submodules. The command for that is:
+If you checkout different stages of the source code history, at some point
+switching to different stages of submodules might be required. In this case use:
 
     git submodule update
 
-It may also become necessary to initialize a submodule, for example if a new
-submodule is added to the repo, or if you switch to a branch that contains a
-submodule that has not been initialized yet. The command is:
+Note that a slightly patched version of PortAudio source is provided as
+submodule. PortAudio can support up to five different backends: MME, DSound,
+WDM-KS, ASIO and WASAPI. For ASIO support, you will need to install the ASIO
+SDK; for DSound, install the DirectX SDK (see the preceding section).
 
-    git submodule init
+### Arranging the components
 
-Another helpful command that can update changes in the submodules configuration
-is
+*Note:* creating the folder structure *exactly as given here* could save you
+from headaches if CMake cannot find them for whatever reason.
 
-    git submodule sync
+Create a new folder next to where you cloned SuperCollider. If you're making a
+32-bit build, call it `x86`; use `x64` for 64-bit. Move the installed files of
+`libsndfile` and the libraries for `readline` and `fftw` so that they match
+the following folder structure *exactly*:
 
-This is useful for example if the address of a submodule has changed.
+    supercollider
+    x64 (or x86)
+        libsndfile
+            bin
+            include
+            lib
+        readline
+            bin
+            include
+            lib
+        fftw
 
-Git will usually tell if a resynchronization/update is required.
+In order to get support for ASIO drivers, follow this directory structure:
 
-*Note*: the Portaudio library is not available as binary download. A slightly
-patched version of the pa-source is provided as submodule of the SC source and
-built automatically during the SC build. In order to add ASIO and/or DSound
-support, the respective SDKs (gratis downloads) have to be obtained and added to
-the source tree. DSound support in the MinGW build uses the library provided by
-MinGW, so no SDK is needed.
+    supercollider
+        external_libraries
+            portaudio_sc_org
+            asiosdk
+                asio
+                common
+                ...
+            ...
 
+FFTW does not provide build files for Visual Studio. In the **Developer Command
+Prompt for VS2013** (note that this this is not `cmd.exe`), `cd` to the
+directory where FFTW is installed and, for a **64-bit** build:
 
-### Arrangement of toolchain, libraries and SDKs
+    lib /machine:x64 /def:libfftw3f-3.def
 
-- Toolchain/IDE
-  - *[MinGW][Qt]*: embedded in the Qt folder tree, downloaded together with Qt. Likely
-    location after install:
+For a **32-bit** build:
 
-      C:\Qt\Tools\mingw482_32
+    lib /def:libfftw3f-3.def
 
-    Compiler and other tools required for the build are found in the binaries
-    subdirectory. It needs to be added to the environment PATH:
+The SC build only uses the single precision FFTW library (fftw3f).
 
-      C:\Qt\Tools\mingw482_32\bin
+*Note*: if you compile FFTW yourself, all files must end up in the root fftw
+directory.
 
+Configuration and Building
+--------------------------
 
-  - *[VS][VS]*: default install of VS2013, paths are handled automatically
+*Note:* This section assumes familiarity with the command line. The section below titled
+"Avoiding the command line" may be helpful if that doesn't describe you.
 
+*Note:* You should always use forward slashes for paths passed to CMake.
 
-- *[Qt][Qt]*
-  - default install with web downloader
-    - for VS-build: A likely location of the matching Qt-libraries is
+**Confirm the location of your Qt install before executing these commands.** You
+may need to modify them if you installed Qt somewhere else. The following
+commands should be executed starting from the root directory of the
+SuperCollider repository.
 
-          C:\Qt\5.5\msvs2013_64
+    SET PATH=C:\Qt\5.5\msvc2013_64\bin;%PATH%
+    SET CMAKE_PREFIX_PATH=C:\Qt\5.5\msvc2013_64
+    mkdir build
+    cd build
+    cmake -G "Visual Studio 12 2013 Win64" ..
+    cmake --build . --config Release
 
-    - for MinGW-build: A likely path of the matching Qt-libraries is
+For a 32-bit build, you will use a different generator and Qt directory:
 
-          C:\Qt\5.5\mingw492_32
+    SET PATH=C:\Qt\5.5\msvc2013\bin;%PATH%
+    SET CMAKE_PREFIX_PATH=C:\Qt\5.5\msvc2013
+    mkdir build
+    cd build
+    cmake -G "Visual Studio 12 2013" ..
+    cmake --build . --config Release
 
-- *[libsndfile][libsndfile]*
-- *[fftw][fftw]*
-- *[readline][readline]* (only works in MinGW build)
+For the final step, you can also build from within Visual Studio:
 
-*Important note*: creating the folder structure described here will save you
-from likely frustration when CMake cannot find dependencies:
+    start SuperCollider.sln
 
-- if you build a 32-bit SC, create a folder `x86` as a sibling of your
-SC source. For a 64-bit SC call it `x64`
-- extract/install/copy the library folders into that folder
-- make sure the library's parent folders are called: `libsndfile`, `fftw` and
-`readline`. A spelling mistake will let the build fail.
+Additional build settings
+-------------------------
 
-You should end up with this folder structure:
+Listed here are common additional configurations you may want to use. For a
+more complete list, use `cmake --help` and/or see the section "More `cmake`:
+building supernova, qt-less, verbosity and more" below.
 
-    sc-source
-    x86
-      libsndfile
-          bin
-          include
-          lib
-      readline
-          bin
-          include
-          lib
-      fftw
+### Build type
 
+The `CMAKE_BUILD_TYPE` controls optimization level and whether or not debugging
+code (asserts, info messages, and other similar code) is included in the
+executable. The configuration is specified either in Visual Studio before
+building or in the build command given to CMake:
 
-Unfortunately "fftw", as distributed by fftw.org, does not come with import
-libraries required for a VS build (fftw3f-3.lib). If you can't get hold of
-a prepared import library, you have to create it by using VS tools. This is not
-difficult, but the official MS documentation is pretty cryptic:
+    cmake --build . --config <config>
 
-    https://msdn.microsoft.com/en-us/library/0b9xe492.aspx
+The four options for \<config\> are:
 
-More practical explanations are easily found via Google. Don't forget that `lib`
-needs the /MACHINE:X64 argument for the 64-bit build, and use the "Developer
-Command Prompt for VS2013" to have the tools available in a pre-set environment
-for this kind of work. The MinGW-build can use the .dll-files directly.
+- `Debug`: no optimization, debugging code enabled
+- `Release`: full optimization, no debugging code
+- `RelWithDebInfo`: "release with debug info." Full optimization, debugging code
+  enabled.
+- `RelMinSize`: "release, minimal size." Like `Release`, but optimized for
+  minimal executable size.
 
-*Note*: if you compile fftw yourself please make sure that the install is
-configured to copy all files to a single flat folder, otherwise cmake will not
-find the required files automatically.
+The `Debug` configuration is used to develop the C++ codebase. For developing
+the SuperCollider core libraries, `Release` should be fine. Using a `Debug`
+build in production is strongly discouraged, as it will be many times slower
+than `Release`.
 
-In order to get support for ASIO drivers, the [ASIO SDK][asiosdk] has to be downloaded
-from Steinberg. The parent folder has to be placed next to the supercollider
-source folder:
+### SuperNova
 
-    sc-source
-    x86
-    asiosdk
-        asio
-        common
-        ...
+If you want to build supernova, add `-D SUPERNOVA=ON`
 
-DSound support uses MinGW libraries in the MinGW build. For VS you have to
-download the DirectX SDK [version 9][dx9sdk] and install it in the system.
+    cmake -D SUPERNOVA=ON ..
 
+### Other targets (install, installer)
 
-### Configuring and executing the build
+If you used the basic instructions above, you will end up with three target
+folders (four if supernova is built). You can run these executables to develop
+SuperCollider, but, as the Qt libraries are not copied to the target folders,
+you *must* keep Qt5 in your environment PATH when running sclang or sc-ide.
+The target folders are:
 
-The quick-steps assume that you are comfortable with the command line. The main
-advantage of using the command line is that you can change environment variables
-without interfering with overall system environment settings. Any adjustments to
-the build environment made below will not change settings in the overall system.
-They will only be used by processes triggered from that command line (shell
-process), and will be gone after the command line window is closed (ways to
-avoid typing when recreating the environment are briefly described in a
-walkthrough below).
-
-Once all dependencies are arranged the way expected, we need to run `cmake`
-in the build folder to configure the build and generate intermediary build files
-for the toolchain and environment used in the build. In principle CMake must be
-told:
-
-    - which "generator" to use
-    - the location of the compiler
-    - the location of Qt (the other libraries will be found automatically
-      if located as described above)
-    - the location of the SC source.
-
-*Note*: You should always use forward slashes for path statements when using
-CMake commands. When creating/modifying environment variables, or interacting
-otherwise directly with Windows command line functionality (`cd`, `rmdir`, ...),
-you should use the proper Windows syntax with backslashes as directory
-delimiters.
-
-
-#### MinGW
-
-- The generator has to be "MinGW Makefiles" (capitalization matters, the
-  quotation marks are required because there is an empty space in the expression)
-- If using MinGW, CMake expects to find the compiler location in the environment
-  PATH
-- Qt is best pointed to by assigning the location of the Qt-libs to the
-  environment variable `CMAKE_PREFIX_PATH`
-- The SC source is pointed to as last element of the `cmake` command. The path
-  can be relative or absolute. The pointer to the source directory is the only
-  element of the cmake command that has to be repeated each time cmake is run.
-  The other arguments are stored in the file "CMakeCache.txt" in the build
-  folder and used by CMake on subsequent runs.
-
-The following steps use a subfolder of the SC source as build folder (called
-'build') and assume Qt (including the MinGW branch) installed in the default
-location. They should be enough to successfully create the intermediary build
-files required to start the build, if the smaller dependencies are in the place
-expected:
-
-    $> SET PATH=C:\Qt\5.5\mingw492_32\bin;C:\Qt\Tools\mingw482_32\bin;%PATH%
-    $> SET CMAKE_PREFIX_PATH=C:\Qt\5.5\mingw492_32
-    $> cd supercollider
-    $> mkdir build
-    $> cd build
-    $> cmake -G "MinGW Makefiles" ..
-
-Using a subfolder of the SC source as build folder has the advantage of being
-able to use git to control the SC source from the build folder. Folders starting
-with the name 'build' are ignored by git. It should be possible to build SC from
-any folder though, provided the source is addressed properly and the
-dependencies are arranged as expected.
-
-The SC MinGW-build will be configured as `RelWithDebInfo` if the build
-configuration isn't set in the configuration run. If you want a debug-build,
-rerun cmake and *add* the assignment `-DCMAKE_BUILD_TYPE=Debug`:
-
-      $> cmake -D CMAKE_BUILD_TYPE=Debug ..
-
-The previous settings for the generator are kept (except the path to the SC
-source).
-
-If you want to add `supernova`, add `-D SUPERNOVA=ON`
-
-      $> cmake -D SUPERNOVA=ON ..
-
-Remains the actual `build`. We can also use `cmake`. The following command works
-on all platforms and with all generators. It uses the build configuration
-set in the previous step:
-
-    $> cmake --build .
-
-Once the build has completed you will have three target folders (four if
-supernova is built), in which SC can be run for debugging or testing purposes.
-As the Qt libraries are not copied to the target folders, it is *required*
-to keep Qt5 in the environment PATH when running the targets. Only the servers
-are exempted from that rule, as they don't require Qt. The target folders are:
-
-    sc-ide: build-folder\editors\scide\<build configuration>
-    sclang: build-folder\lang\<build configuration>
-    scsynth: build-folder\server\scsynth\<build configuration>
+    sc-ide:    build-folder\editors\scide\<build configuration>
+    sclang:    build-folder\lang\<build configuration>
+    scsynth:   build-folder\server\scsynth\<build configuration>
     supernova: build-folder\server\supernova\<build configuration>
 
 Other targets (like plugins and external libraries) do not provide executables
@@ -560,32 +459,24 @@ Projects/Run-pane accessible from the "Mode selector"-ribbon. You should also
 set the working directory there to allow sclang find the server (for more
 information on using QtC see the walkthrough below).
 
-If you want to run SuperCollider independently of the build environment (as in:
-run it from the file explorer, move it to another computer, pass it on to a
-friend), you need to run the install step, or "build the target install". This
-is done by appending `--target install` to the build command:
+If you want to run SuperCollider independently of the build environment:
 
-    $> cmake --build . --target install
+    cmake --build . --target install
 
-The install step takes quite some time, as CMake's "bundle utilities" requires
-a lot of time to find, and copy all required libraries to the installation
-folder. Using MinGW this can take more than 10 minutes.
+This will create a self-contained, portable application which bundles all the
+required libraries.
 
-Note: the install step is broken in the MinGW build when using cmake 3.6+ 3.7+,
-please use cmake 3.5.2 when building with MinGW.
+If you want to create a binary installer, first build the target install, then
+make sure `makensis`, the command-line tool for NSIS, is in your PATH. Finally,
 
-If you want to create a binary installer, run:
+    cmake --build . --target installer
 
-      $> cmake --build . --target installer
+The SuperCollider installer executable will be built in the directory path:
 
-For this to work, the install target will have to be built already, and NSIS has
-to be installed on your system, with its command line tool `makensis` added to
-the PATH.
+    <...>\build\Install\SuperCollider.exe
 
-The SC installer executable will be written to the same parent folder as the
-SuperCollider install, for example:
-
-    ...\supercollider\build\x64\Release\SuperCollider-<version-build type>.exe
+The exact name will vary depending on what architecture and build configuration
+you specified.
 
 Note that for just passing SC to a friend it is not really necessary to create
 an installer. You can copy the main SuperCollider folder created during install
@@ -598,104 +489,198 @@ always loose the local customizations and additions stored in the
 userAppSupportDirectory. The new Quarks system provides means to make porting
 of extension/Quark groups easier.
 
+### PortAudio
 
-### VS
-
-*Note*: the preceding MinGW chapter contains a few details not repeated here.
-You may want to read it if questions arise.
-
-- add the Qt binaries location at the beginning of the environment PATH (while
-  this is not strictly required, it helps to avoid that potential alternative
-  Qt-installs on your system interfere during install).
-
-      SET PATH=C:\Qt\5.5\msvc2013_64\bin;%PATH%
-
-  The toolchain is detected automatically, using an environment variable
-  set during the install of VS.
-
-- create the environment variable `CMAKE_PREFIX_PATH` and have it point to Qt,
-  e.g.:
-
-      $> SET CMAKE_PREFIX_PATH=C:\Qt\5.5\msvc2013_64
-
-- create a build-folder, enter it, and configure the build by running `cmake`.
-  The *generator* (`-G`), and the path to the SC-source have to be passed in,
-  e.g.:
-
-      $> mkdir sc-build
-      $> cd sc-build
-      $> cmake -G "Visual Studio 12 2013 Win64" ..\supercollider
-
-  *Note*: CMake chooses the VS toolchain by default on Windows if found, but it
-  uses the version compiling for a 32-bit target. Therefore the important
-  element in above generator choice is "Win64"
-
-You should end up with a solution file `SuperCollider.sln` that can be opened in
-VS to execute the actual build. Starting VS with the solution file from the
-command line in which you ran CMake, makes sure that the environment settings
-(PATH and Qt-pointer) remain the same:
-
-    $> start SuperCollider.sln
-
-You can also build from the command line. As the VS generator is a multi
-configuration generator, the build configuration is determined in this step:
-
-    $> cmake --build . --config Release
-
-If you omit the build configuration, a debug version will be built.
-
-In order to obtain a build that can be run independently of the build
-environment, build the "target install":
-
-    $> cmake --build . --config Release --target install
-
-Note that this is required for deployment only. A development cycle would
-typically use the version contained in the target folders to avoid the separate
-step of *installing* SC. Provided Qt5 is added to the environment PATH, all
-targets containing executables (scide, sclang and scsynth) can be run in their
-respective target folders (hitting 'run' or 'debug' in the IDE should work).
-Within VS you should define the working directory for the respective target in
-the user-configuration settings of the target being run (e.g. SuperCollider),
-otherwise the server will not be bootable from SC-IDE or sclang (see the
-walkthrough on CMake-Gui and VS for more details on using the VS IDE).
-
-- if you want to create a binary installer, build this custom target:
-
-      $> cmake --build . --target installer
-
-
-### Portaudio
-
-Portaudio is provided as submodule of SC and is built automatically as part
-of the SC-build. In order to add ASIO- and/or DSound support, the respective
-SDKs have to be added to the build.
-
-ASIO: download the SDK from [Steinberg][asiosdk], extract the zip and place
-the folder in a sibling folder of the supercollider source (not the portaudio
-folder in external_libraries). The folder name should not contain dots, start
-with `as`, and be the immediate parent of the library folders (asio,
-common, ...). You should end up with a folder tree like this:
-
-    sc-source
-    asiosdk
-        asio
-        common
-        driver
-        host
-
-DSound/DirectX: The VS-build requires DirectX. It should be installed as usual.
-[version 9 (June 2010)][dx9sdk].
-
-You can study the file `CMakeLists.txt` in the portaudio folder
-(external_libraries\portaudio_sc_org) to learn about the options that the build
-provides. With default settings, all APIs that work out of the box are enabled
-and only the library for static linking is built. In the VS-build all APIs are
-enabled, in the MinGW build WASAPI had to be omitted, and some features of full
-duplex mode in DSound had to be disabled. If you would like to tweak the PA-
-build you can single it out from the SC build like so:
+You can study the file `external_libraries\portaudio_sc_org\CMakeLists.txt` to
+learn about the options that the build provides. With default settings, all APIs
+that *work out of the box* are enabled and only the library for static linking
+is built. In the VS-build all APIs are enabled. For MinGW, WASAPI is ommitted
+and some features of DSound's full duplex mode are unavailable.  If you would
+like to tweak the PortAudio build you can single it out from the SC build with:
 
     cmake --build . --target portaudio
 
+*Note:* MSYS2 provides a portaudio package, but it only comes with MME and
+DSound support out of the box. If you want ASIO or WDM-KS, you need to build
+PortAudio within MSYS2. Users have experienced issues using the WASAPI backend
+to build in MinGW-based environments. Use Visual Studio if you need WASAPI.
+
+### FLAC support
+
+The binaries distrubted by the libsndfile website do not come with FLAC support,
+which means that your SuperCollider build won't have it, either.  Unfortunately,
+there does not seem to be an easy way to get such a binary.  Instructions for
+building libsndfile with FLAC support can be found in the [libsndfile
+readme][libsndfile readme], but it's probably easiest to drop in the
+FLAC-enabled DLL that comes with our Windows releases.
+
+If you are interested in building it yourself, please check out ["Building
+libsndfile with FLAC support"][libsndfileFLAC] on the project wiki.
+
+Common build problems
+---------------------
+
+These are likely the most common causes of build problems:
+
+- After run- or debug-sessions, sometimes scsynth or sclang "zombies" stay
+in memory. That will create file-access errors during build. End the process
+the in the task manager.
+- Make sure you are using the correct toolchain and libraries; double-check the
+instructions above in "Required Software", paying special attention to any
+version restrictions for your particular build toolchain.
+- Dynamic/runtime-library mismatch. This can happen if dependencies and
+core SC require different versions of the same runtime library. Reach out
+for libraries that do not depend on MinGW runtimes or make sure all components
+in the build can use the same runtimes.
+- Architecture mismatches. This does not only concern target system architecture
+(32- or 64-bit) but also the toolchain used to compile SC and Qt. They have to
+match as closely as possible. SC built with VS requires the msvc2013_64 or
+msvc2013 package.
+- Dirty states in your build folder (usually resulting from changes in the build
+configuration). See below for how to fix this.
+- cmake finds and uses different libraries on your system than the ones intended
+for the build. See below for ways to identify these problems.
+
+When asking for build help, please mention the installed versions of the
+components you used to build SC!
+
+### Dirty build states
+
+While you are developing SC code, it's generally safe to reuse your build
+folder; the build will complete *much* faster. If you change branches, build
+tools, cmake settings, or the versions of your dependencies, things are less
+safe, the build configuration might have gone out of sync with the files used in
+the build, without CMake being aware of it. There are a few ways to clean your
+build. In order of increasing severity:
+
+1. Delete individual entries from CMakeCache.txt to make sure they are rewritten
+2. Delete all stored configuration settings for that build: `del CMakeCache.txt`
+3. Remove the compiled object files from the build (forces recompile):
+`cmake --build . --target clean`
+4. Delete everything in the build folder, via File Explorer or `rmdir build /s /q`
+
+Generally, clearing the CMakeCache.txt and rerunning `cmake` should be enough to
+fix many build problems. Switching git branches that only contain changes to
+code in SuperCollider proper should usually not require this kind of repair.
+
+### Wrong libraries found
+
+While some precautions have been taken to prevent wrong finds, it is hard to
+completely exclude the possibility (or comes at the price of lesser
+flexibility). Wrong or unplanned finds carry big risks: the libraries could be
+of an unsupported version, wrong architecture, or missing the right header
+files. If you overlook a wrong find, and the build succeeds, you will likely
+get an error message at SC start-up. This is actually a good thing, because it
+allows to identify the actual problem. Far worse are generic error messages or
+mysterious crashes somewhere along the way because of a misfit.
+
+The two most likely types of wrong finds occur either at the very beginning of
+the build, when CMake find-modules try to identify the libraries required for
+the build on your system, or at the very end (during "install"), when a CMake
+utility (bundle utilities) tries to find the libraries required to allow your
+build to work outside of the build environment (*standalone* in the meaning of
+*build environment independent* or *autonomous*).
+
+There are two relatively easy ways to identify wrong finds at the beginning:
+
+- use `cmake-gui` and look up the paths to all libraries in the list of build
+options presented in the central pane (if you are in doubt about the
+significance of envirnment settings when using CMake-Gui, please refer to
+the walkthrough 'Avoiding the command line: From CMake-Gui to Visual Studio'.
+The aspects relating to environment settings are relevant for other use cases
+as well)
+- study the file CMakeCache.txt in the root build folder. The quickest way to
+find the relevant entries is by searching for the library names (readline,
+sndfile, fftw and Qt5). Look for paths pointing to headers (include_dir),
+(import-) libraries, dll's and dll-directories.
+
+You can change build settings both in CMake-Gui and by editing CMakeCache.txt.
+CMakeCache.txt - the cmake configuration "cache" - also contains hints as to the
+function of the variables. You can directly edit this file, and new values will
+be used on reconfiguration of the build. This is equivalent to passing in
+variable assignments with the flag `-D` on the command line. These values will
+be stored in CMakeCache.txt and replace values assigned by CMake's search
+routines. It must be said though, that you are likely to be better of, if you
+identify the cause of the wrong find and fix it, rather than manually edit a
+configuration generated automatically.
+
+*Note*: if you reconfigure the build by running `cmake` after system changes
+(like deleting unwanted libraries or changing the path order), CMake will
+usually *not* overwrite values that have already been stored in the cache file.
+The cache serves to store values expected to be readable globally during the
+build, *and* values that have been passed into the configuration via the flag
+`-D`. During the build cache values are prioritized over values any cmake
+routine might produce. This priority order helps to protect manual edits of the
+build configuration, which can be done with `-D`, in CMake-Gui or by editing
+CMakeCache.txt. So keep in mind that implementing a different logic to create a
+value for a cmake variable (or e.g. moving a library to a place where it will be
+found by cmake) will not necessarily become effective in the next configure run.
+If the cache already contains a value assigned to that variable it will continue
+to use that value. A safe fix for this kind of problems is to delete the entire
+cache file, but it is usually sufficient to delete the variable(s) that should be
+reassigned values.
+
+If you get wrong finds because of a conflicting system configuration (Qt4,
+different toolchains, individual libraries in high priority system locations
+(e.g. Windows\system32 or Windows\sysWow64) or in early PATH positions.
+Sometimes adding the parent folder of the intended library to the front of the
+environment path can help. If nothing works, temporarily renaming the offending
+libraries can take them out of the game. In principle the build system tries to
+anticipate these problems and prevent them. So if you bump into a new case,
+please report this on one of the SC mailing lists, or add an issue in SC's
+issue-tracker on Github.
+
+The second candidate for wrong finds is the fixup_bundle utility at the very end
+of the install process. Remember, for developing SC the "install" step (building
+the target "install") is not required, SC can be run in the respective target
+folders - using and depending on the build environment settings. The development
+IDEs should be able to find the correct executable if you hit "run target". But
+if you want to start SC from the file explorer, or use a copy on another
+computer, you will need to "install" and then run from/copy the generated
+installation folder.
+
+On Windows the bundle utility just reads out the dynamic libraries required to
+run an executable, tries to find them in the system, and copies them to the
+folder in which the executable resides. This is the safest way to guarantee that
+SC can be used independently of the build environment, because Windows
+executables always look for libraries in their own working directory *first*.
+Fixup_bundle just identifies libraries by their names (version and architecture
+are not verified). When it tries to find the libraries in the system, the
+environment PATH is taken into consideration with relatively high priority.
+Therefore it is theoretically possible that fixup_bundle finds different
+libraries from the ones used at build time. As a result your build will work,
+but the install won't. Even worse: the error messages produced in this case
+are far less specific than the ones produced if a library is simply missing.
+
+Fortunately it is not too difficult to identify wrong finds of fixup_bundle,
+because it produces output that tells exactly, which libraries were copied to
+the executable folder. Further more it is the last install step, you just need
+to scroll up the cmake build output. So if you get obscure Windows system
+messages at SC start up, try to scroll up the install output, and go over the
+last segment, starting with `fixup_qt5_executable` and/or `fixup_bundle`. If you
+lost the output, just repeat `cmake --build . --target install`. Going over that
+list you might be able to spot cases where required libraries were copied from
+unintended places. A quick workaround to get SC running in such cases is to
+replace the wrong library by the correct one. A better workaround is to adjust
+your build environment, so that you don't have to repeat the replacement after
+each install. Adding the overlooked library's parent folder to the head of the
+environment PATH should usually do the job. Again, the build system was
+constructed to anticipate such errors and prevent them. All directories
+containing libraries are passed to fixup_bundle and should be treated with
+higher priority than the environment path. So if you bump into a case, please
+report it to the SC community. Or even better: create a pull request on Github
+that enhances the build system.
+
+Of course there could also be bugs in the SC source. A source for the
+current build status of SC is the travis-ci status page:
+
+https://travis-ci.org/supercollider/supercollider
+
+Unfortunately though there is no Continuous Integration system in place for
+Windows yet. Therefore you are strongly encouraged to report Windows build
+issues in one of the mailing lists, or the SC issue tracker on Github.
+Reporting Windows build issues is currently the only way to detect errors
+for SCWin resulting from progress in mainstream SC development.
 
 Walkthroughs
 ------------
@@ -843,7 +828,6 @@ where CMake-Gui *inherits* them. If you set them at the command line (in a
 "shell") you need to start CMake-Gui from that shell (by entering `cmake-gui`).
 If you start CMake-Gui from the Windows Start Menu, the environment variables
 must be set on system level. The same is obviously true for a development IDE.
-
 
 ### Avoiding the command line: from CMake-Gui to Visual Studio (environment and GUI-applications)
 
@@ -1283,253 +1267,34 @@ Another way of storing CMake command line arguments is creating a "toolchain"
 file. This is the CMake suggested method. Please look up the CMake documentation
 if you require an advanced configuration, and are interested in this approach.
 
-
-Diagnosing build problems
--------------------------
-
-These are likely the most common causes of build problems:
-
-- after run- or debug-sessions sometimes scsynth or sclang "zombies" stay
-  in memory. That will create file-access errors during build. End the process
-  the in the task manager
-- too old or new compiler/toolchain: tested are MinGW 4.8.2 32-bit and
-  VS 12/2013 64-bit
-- incorrect versions of the dependencies (readline 5.0.1, libsndfile 1.0.25/26/27,
-  fftw 3.3.4/5, Qt 5.5.1)
-- too old cmake version (3.4.2 or bigger are required), for the MinGW build
-  cmake max-version is 3.5.2
-- dynamic/runtime-library mismatch. This can happen if dependencies and
-  core SC require different versions of the same runtime library. Reach out
-  for libraries that do not depend on MinGW runtimes or make sure all components
-  in the build can use the same runtimes.
-- SC- and Qt-architecture mismatch. This does not only concern target system
-  architecture (32- or 64-bit) but also the toolchain used to compile SC and Qt
-  (sometimes called flavour in this text). They have to match as closely as
-  possible (anything but an exact match is likely to cause trouble). SC built
-  with VS requires the msvc2013_64 flavour, the MinGW 4.8.2 build requires
-  the mingw492_32 flavour
-- dirty states in your build folder (usually resulting from changes in the build
-  configuration). See below for various "fixes"
-- cmake finds and uses different libraries on your system than the ones intended
-  for the build. See below for ways to identify these problems.
-
-When asking for build help, please mention the installed versions of the
-components you used to build SC!
-
-
-### Dirty build states
-
-While you are developing SC code, it's generally safe to re-use your build
-folder, the build will complete *much* faster. If you change branches, build
-tools, cmake settings, or the versions of your dependencies, things are less
-safe, the build configuration might have gone out of sync with the files used in
-the build, without CMake being aware of it. The way out of this is to clean your
-build folder. These are common ways to accomplish this, in order of severity:
-
-1. delete individual entries from CMakeCache.txt to make sure they are rewritten
-2. `del CMakeCache.txt` (delete all stored configuration settings for that build)
-3. `cmake --build . --config Debug* --target clean` remove the compiled object
-   files from the build (forces recompile)
-4. Delete everything in the build folder. Use the file Explorer or run
-   `rmdir . /s /q`
-
-Generally, clearing the CMakeCache.txt and rerunning `cmake` should be enough to
-fix many build problems. Switching git branches that only contain changes to
-code in SC proper should usually not require this kind of repair.
-
-
-### Wrong libraries found
-
-While some precautions have been taken to prevent wrong finds, it is hard to
-completely exclude the possibility (or comes at the price of lesser
-flexibility). Wrong or unplanned finds carry big risks: the libraries could be
-of an unsupported version, wrong architecture, or missing the right header
-files. If you overlook a wrong find, and the build succeeds, you will likely
-get an error message at SC start-up. This is actually a good thing, because it
-allows to identify the actual problem. Far worse are generic error messages or
-mysterious crashes somewhere along the way because of a misfit.
-
-The two most likely types of wrong finds occur either at the very beginning of
-the build, when CMake find-modules try to identify the libraries required for
-the build on your system, or at the very end (during "install"), when a CMake
-utility (bundle utilities) tries to find the libraries required to allow your
-build to work outside of the build environment (*standalone* in the meaning of
-*build environment independent* or *autonomous*).
-
-There are two relatively easy ways to identify wrong finds at the beginning:
-
-- use `cmake-gui` and look up the paths to all libraries in the list of build
-  options presented in the central pane (if you are in doubt about the
-  significance of envirnment settings when using CMake-Gui, please refer to
-  the walkthrough 'Avoiding the command line: From CMake-Gui to Visual Studio'.
-  The aspects relating to environment settings are relevant for other use cases
-  as well)
-- study the file CMakeCache.txt in the root build folder. The quickest way to
-  find the relevant entries is by searching for the library names (readline,
-  sndfile, fftw and Qt5). Look for paths pointing to headers (include_dir),
-  (import-) libraries, dll's and dll-directories.
-
-You can change build settings both in CMake-Gui and by editing CMakeCache.txt.
-CMakeCache.txt - the cmake configuration "cache" - also contains hints as to the
-function of the variables. You can directly edit this file, and new values will
-be used on reconfiguration of the build. This is equivalent to passing in
-variable assignments with the flag `-D` on the command line. These values will
-be stored in CMakeCache.txt and replace values assigned by CMake's search
-routines. It must be said though, that you are likely to be better of, if you
-identify the cause of the wrong find and fix it, rather than manually edit a
-configuration generated automatically.
-
-*Note*: if you reconfigure the build by running `cmake` after system changes
-(like deleting unwanted libraries or changing the path order), CMake will
-usually *not* overwrite values that have already been stored in the cache file.
-The cache serves to store values expected to be readable globally during the
-build, *and* values that have been passed into the configuration via the flag
-`-D`. During the build cache values are prioritized over values any cmake
-routine might produce. This priority order helps to protect manual edits of the
-build configuration, which can be done with `-D`, in CMake-Gui or by editing
-CMakeCache.txt. So keep in mind that implementing a different logic to create a
-value for a cmake variable (or e.g. moving a library to a place where it will be
-found by cmake) will not necessarily become effective in the next configure run.
-If the cache already contains a value assigned to that variable it will continue
-to use that value. A safe fix for this kind of problems is to delete the entire
-cache file, but it is usually sufficient to delete the variable(s) that should be
-reassigned values.
-
-If you get wrong finds because of a conflicting system configuration (Qt4,
-different toolchains, individual libraries in high priority system locations
-(e.g. Windows\system32 or Windows\sysWow64) or in early PATH positions.
-Sometimes adding the parent folder of the intended library to the front of the
-environment path can help. If nothing works, temporarily renaming the offending
-libraries can take them out of the game. In principle the build system tries to
-anticipate these problems and prevent them. So if you bump into a new case,
-please report this on one of the SC mailing lists, or add an issue in SC's
-issue-tracker on Github.
-
-The second candidate for wrong finds is the fixup_bundle utility at the very end
-of the install process. Remember, for developing SC the "install" step (building
-the target "install") is not required, SC can be run in the respective target
-folders - using and depending on the build environment settings. The development
-IDEs should be able to find the correct executable if you hit "run target". But
-if you want to start SC from the file explorer, or use a copy on another
-computer, you will need to "install" and then run from/copy the generated
-installation folder.
-
-On Windows the bundle utility just reads out the dynamic libraries required to
-run an executable, tries to find them in the system, and copies them to the
-folder in which the executable resides. This is the safest way to guarantee that
-SC can be used independently of the build environment, because Windows
-executables always look for libraries in their own working directory *first*.
-Fixup_bundle just identifies libraries by their names (version and architecture
-are not verified). When it tries to find the libraries in the system, the
-environment PATH is taken into consideration with relatively high priority.
-Therefore it is theoretically possible that fixup_bundle finds different
-libraries from the ones used at build time. As a result your build will work,
-but the install won't. Even worse: the error messages produced in this case
-are far less specific than the ones produced if a library is simply missing.
-
-Fortunately it is not too difficult to identify wrong finds of fixup_bundle,
-because it produces output that tells exactly, which libraries were copied to
-the executable folder. Further more it is the last install step, you just need
-to scroll up the cmake build output. So if you get obscure Windows system
-messages at SC start up, try to scroll up the install output, and go over the
-last segment, starting with `fixup_qt5_executable` and/or `fixup_bundle`. If you
-lost the output, just repeat `cmake --build . --target install`. Going over that
-list you might be able to spot cases where required libraries were copied from
-unintended places. A quick workaround to get SC running in such cases is to
-replace the wrong library by the correct one. A better workaround is to adjust
-your build environment, so that you don't have to repeat the replacement after
-each install. Adding the overlooked library's parent folder to the head of the
-environment PATH should usually do the job. Again, the build system was
-constructed to anticipate such errors and prevent them. All directories
-containing libraries are passed to fixup_bundle and should be treated with
-higher priority than the environment path. So if you bump into a case, please
-report it to the SC community. Or even better: create a pull request on Github
-that enhances the build system.
-
-Of course there could also be bugs in the SC source. A source for the
-current build status of SC is the travis-ci status page:
-
-    https://travis-ci.org/supercollider/supercollider
-
-Unfortunately though there is no Continuous Integration system in place for
-Windows yet. Therefore you are strongly encouraged to report Windows build
-issues in one of the mailing lists, or the SC issue tracker on Github.
-Reporting Windows build issues is currently the only way to detect errors
-for SCWin resulting from progress in mainstream SC development.
-
-
-Description of the SC 3.8 release build
+Description of the SC 3.9 release build
 ---------------------------------------
 
-All dependencies not contained in the SC source (external_libraries) were
-downloaded from the original providers (see links at the end). For both VS and
-QT the free community editions were used.
+The following libraries and tools were used to build the Windows installers
+"Windows-x86-VS" and "Windows-x64-VS":
 
-SCWin64 3.8 was built with Visual Studio 12/2013
-
-- Qt5.5.1 (flavour msvc2013_64)
-- libsndfile 1.0.27
+- Visual Studio 12.0 2013, compiler version 18.00.40629
+- Qt5.5.1
+  - for Windows-x86-VS: distribution `msvc2013`
+  - for Windows-x64-VS: distribution `msvc2013_64`
+- libsndfile 1.0.28, compiled by Brian Heim for FLAC support
 - FFTW 3.3.5
-
-SCWin32 3.8 was built using Qt Creator, combining MinGW 4.8.2 and Qt 5.5.1
-mingw492_32 into a kit. The MinGW distribution provided by Qt was used.
-
-- linsndfile 1.0.27
-- FFTW 3.3.5
-- Readline 5.0.1 (as provided by gnuwin32)
-
-For both builds all other external libraries (including portaudio) were compiled
-as part of the SC build, using the sources embedded in the SC source tree (in
-the folder external libraries) and the settings defined there.
-
-The portaudio build was extended for ASIO support by adding the ASIO-SDK:
-
 - ASIO SDK 2.3
-
-For DSound support different DirectX versions had to be used in the VS and MinGW
-build. For VS:
-
 - DirectX v9 (June 2010)
+- NSIS 3.02.1
 
-The MinGW build uses the libraries coming with MinGW.
+Known issues
+============
 
-The tools used were Git for Windows v2.10.2.windows.1, cmake v3.52, and NSIS v3.0b1
-to create the binary installer.
+- READLINE/Command line-mode is not available.
 
-
-Known problems
-==============
-
-- READLINE/Command line-mode does not work properly.
-  You have to wait a short while with the key pressed to get it to register - if
-  you wait for too long, the key will repeat. It's kind of possible to get used
-  to it for a short while. Second problem: sclang will crash if you use ctrl-d.
-  Another problem shared with the IDE: You need to stop the server process
-  manually to avoid scsynth-zombies. Readline is initialized in
-  lang/LangSource/SC_TerminalClient.cpp (readlineInit()). This problem can only
-  be studied in the MinGW build for now, as the VS build (even 32-bit) cannot
-  link to the readline lib yet (and you can only use v. 5.0.1 which isn't
-  available as 64-bit binary).
+- Supernova is not available.
 
 - using shell commands from SC only works in a quite limited way (and always did).
   .unixCmd expects a unix shell, only for essential requirements workarounds
   are in place on Windows.
 
-- serial port communication does not work on Windows
-
-- your username should not contain spaces or non-ASCII characters
-
-A build issue that does not seem to create a problem:
-
-- during the MinGW build, when statically linking portaudio, we currently get
-  several dozen non-fatal errors (this is not due to the portaudio version,
-  it has been observed with several pa-builds. Similar errors are reported in
-  unrelated contexts and have to do with boost). These errors seem to have no
-  consequence:
-
-      CMakeFiles\SuperCollider.dir\objects.a(find_replace_tool.cpp.obj):-1: error: duplicate section `.data$_ZGVZN5ScIDE4Main8instanceEvE9singleton[__ZGVZN5ScIDE4Main8instanceEvE9singleton]' has different size
-      ...
-
+- Serial port communication is not available.
 
 Outro
 =====
@@ -1542,10 +1307,12 @@ software publicly and freely available.
 [asio4all]: http://www.asio4all.com/ (ASIO4ALL, generic ASIO driver)
 [asiosdk]: http://www.steinberg.net/en/company/developers.html (ASIO SDK v2.3)
 [atomeditor]: https://atom.io/ (free unixy text editor with SuperCollider package)
+[bleeding edge 32 bit]: http://supercollider.s3.amazonaws.com/builds/supercollider/supercollider/win32/develop-latest.html
+[bleeding edge 64 bit]: http://supercollider.s3.amazonaws.com/builds/supercollider/supercollider/win64/develop-latest.html
 [cmake]: http://www.cmake.org/download/
 [conemu]: https://conemu.github.io/ (free console emulator)
 [dependency walker]: http://www.dependencywalker.com/ (inspect missing library errors)
-[dx9sdk]: http://www.microsoft.com/en-us/download/details.aspx?id=6812 (MS DirectX 9 SDK (June 2010) for VS build)
+[dx9sdk]: http://www.microsoft.com/en-us/download/details.aspx?id=6812 (MS DirectX 9 SDK (June 2010\) for VS build)
 [fftw]: http://www.fftw.org/install/windows.html
 [Git]: http://git-scm.com/download/win (Git for Windows)
 [libsndfile]: http://www.mega-nerd.com/libsndfile/
@@ -1554,12 +1321,16 @@ software publicly and freely available.
 [NSIS]: http://nsis.sourceforge.net/Download (create installer)
 [portaudio]: http://www.portaudio.com/
 [Qt]: http://www.qt.io/download-open-source/#section-2 (Qt official distribution, choose online installer)
+[Qt55]: https://download.qt.io/archive/qt/5.5/5.5.1/
 [readline]: http://gnuwin32.sourceforge.net/packages/readline.htm
 [readline doc]: https://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
 [SC]: https://supercollider.github.io (Main SC-site)
 [SC mailing lists]: http://www.birmingham.ac.uk/facilities/ea-studios/research/supercollider/mailinglist.aspx
 [SC repo]: https://github.com/supercollider/supercollider (SC source repository on Github with issue tracker)
 [SC help]: http://doc.sccode.org/Help.html (SC online help)
-[VS]: https://my.visualstudio.com/downloads (you need to create a free developer account to download Visual Studio 2013, community edition)
+[VS]: https://my.visualstudio.com/downloads
+[VS2013]: https://www.visualstudio.com/vs/older-downloads/ (you need to create a free developer account to download Visual Studio 2013, community edition)
 [Windows 8 SDK]: https://developer.microsoft.com/en-us/windows/downloads/windows-8-1-sdk (Windows 8.1 SDK including debugger used by Qt Creator)
 [Windows 10 SDK]: https://developer.microsoft.com/en-us/windows/downloads/windows-10-sdk  (Windows 10 SDK including debugger used by Qt Creator)
+[libsndfileFLAC]: https://github.com/supercollider/supercollider/wiki/Building-libsndfile-with-FLAC-support-(Windows,-VS-2017) (Building libsndfile with FLAC support)
+[libsndfile readme]: https://github.com/erikd/libsndfile/blob/master/README.md (libsndfile readme)
